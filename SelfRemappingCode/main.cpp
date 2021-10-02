@@ -45,5 +45,6 @@ main(
     }
 
 exit:
+    system("pause");
     return mainstatus;
 }

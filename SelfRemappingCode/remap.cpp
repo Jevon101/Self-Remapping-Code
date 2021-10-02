@@ -174,6 +174,11 @@ RmpRemapImage(
     //
     RmppCopyPeSections(pNtHeaders, (ULONG_PTR)pRemapRegion);
 
+    // Relocate
+    UINT_PTR dwLocationDelta = (UINT_PTR)((UINT_PTR)pRemapRegion - (UINT_PTR)ImageBase);
+    Relocation(dwLocationDelta, reinterpret_cast<UCHAR*>(pRemapRegion), (PIMAGE_DOS_HEADER)ImageBase);
+
+
     //
     // Locate the address of the remap routine inside the remap region.
     //
@@ -700,4 +705,55 @@ RmppValidateRemappedPeSectionProtection(
 
 exit:
     return status;
+}
+
+CONST PIMAGE_NT_HEADERS GetNtHeader(_In_ CONST PIMAGE_DOS_HEADER pDosHeader)
+{
+    auto lgOffset = pDosHeader->e_lfanew + reinterpret_cast<UINT_PTR>(pDosHeader);
+    return reinterpret_cast<CONST PIMAGE_NT_HEADERS>(lgOffset);
+}
+
+BOOL Relocation(_In_ UINT_PTR LocationDelta, _In_ UCHAR* pCode, _In_ PIMAGE_DOS_HEADER pDosHeader)
+{
+    auto pNtHeader = GetNtHeader(pDosHeader);
+    auto pDirectoryBaseReloc = &pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    if (pDirectoryBaseReloc->Size == NULL)
+    {
+        printf("pDirectoryBaseReloc->Size = 0");
+        return FALSE;
+    }
+
+    auto pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(pCode + pDirectoryBaseReloc->VirtualAddress);
+    while (pBaseRelocation->VirtualAddress != 0)
+    {
+        auto dwRelocationBase = reinterpret_cast<UINT_PTR>(pCode) + pBaseRelocation->VirtualAddress;
+        USHORT* pRelocationInfo = reinterpret_cast<USHORT*>(reinterpret_cast<UINT_PTR>(pBaseRelocation) + sizeof(IMAGE_BASE_RELOCATION));
+
+        int nMaxSize = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / 2; // >> 1
+        for (int i = 0; i < nMaxSize; ++i, ++pRelocationInfo)
+        {
+            DWORD dwOffset = *pRelocationInfo & 0xFFF;
+
+            switch (*pRelocationInfo >> 12)
+            {
+            case IMAGE_REL_BASED_ABSOLUTE:
+                break;
+            case IMAGE_REL_BASED_HIGHLOW: // x86
+                *reinterpret_cast<UINT_PTR*>(dwRelocationBase + dwOffset) += (UINT_PTR)(LocationDelta);
+                break;
+#ifdef _WIN64
+            case IMAGE_REL_BASED_DIR64: // x64
+                *reinterpret_cast<ULONGLONG*>(dwRelocationBase + dwOffset) += LocationDelta;
+                break;
+#endif // _WIN64
+
+            default:
+                break;
+            }
+        }
+
+        pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(reinterpret_cast<UINT_PTR>(pBaseRelocation) + pBaseRelocation->SizeOfBlock);
+    }
+
+    return TRUE;
 }
