@@ -1,38 +1,32 @@
-# Self-Remapping Code
+# 自映射代码（Self-Remapping Code）
 
 [English](https://github.com/Jevon101/Self-Remapping-Code/blob/master/README.md) | [简体中文](https://github.com/Jevon101/Self-Remapping-Code/blob/master/doc/cn/README.md)
 
-## Summary
+## 摘要
 
-This program remaps its image to prevent the page protection of pages contained in the image from being modified via NtProtectVirtualMemory.
+此程序重新映射它的加载映像（image），避免映像中页面保护属性通过NtProtectVirtualMemory函数被修改。
 
-## Motivation
+## 作用
 
-This technique can be utilized as an anti-debugging and anti-dumping mechanism.
+这个技术可以用在防止调试和Dump方面。
 
-## Implementation
+## 步骤
 
-The remapping technique uses the following strategy:
+重映射要经过以下几个过程:
 
-1. The image is copied to an executable buffer referred to as the 'remap
-    region'.
+1. 原先加载的映像（image）被复制到一个可执行的缓冲区，被称为 "重映射区域"（RemapRegion）。
 
-2. The remap routine inside the remap region is located and invoked.
+2. 在重映射区域内的重映射函数被定位和调用。
 
-3. The remap routine creates a page-file-backed section to store the
-    remapped image.
+3. 重映射函数创建了一个page-file-backed的区域（section）来存储重新映射的映像（image）。
 
-4. The remap routine maps a view of the entire section and copies the
-    contents of the image to the view. This view is then unmapped.
+4. 重映射函数将上一步获得的Section进行映射（NtMapViewOfSection）并将原先加载的映像（image）内容复制到这个新的视图（View）中，然后这个新的视图（View）被取消映射（Unmap)。
 
-5. The remap routine maps a view for each pe section in the image using the
-    relative virtual address of the pe section as the section offset for
-    the view. Each view is mapped using the 'SEC_NO_CHANGE' allocation
-    type to prevent page protection changes.
+5. 重映射函数为每一个PE节区的相对虚拟地址作为视图的段偏移都进行重新映射，每个视图都使用 “SEC_NO_CHANGE”分配类型进行映射，以防止页面保护的改变。
 
-6. The remap routine completes and execution returns to the remapped image.
+6. 重映射函数执行完成后，返回到被重映射后的视图。
 
-The following tables are examples of the memory layout of an image before and after it has been remapped using this technique:
+下表是一个Image在使用这种技术重新映射前后的内存布局例子：
 
 ##### Before
 
@@ -53,6 +47,7 @@ Address          Size             Info                          Type   Protect  
 0000000140051000 000000000000F000 Reserved (0000000140000000)   IMG             ERWC-
 </pre>
 
+
 ##### After
 
 <pre>
@@ -66,6 +61,8 @@ Address          Size             Info                          Type   Protect  
 0000000140050000 0000000000001000                               MAP    -R---    -R---
 </pre>
 
-## Requirements
 
-- Each pe section in the image must be aligned to the system allocation granularity. This program uses the `/ALIGN` linker option to achieve this alignment.
+## 注意
+
+- 映像中的每个PE节区必须与系统分配粒度对齐。 该程序使用`/ALIGN` 链接器选项来实现这种对齐。
+
