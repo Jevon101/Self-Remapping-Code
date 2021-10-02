@@ -4,7 +4,7 @@
 
 ## 摘要
 
-此程序重新映射它的加载映像（image），避免映像中页面保护属性通过NtProtectVirtualMemory函数被修改。
+此程序重新映射它的加载映像（image），避免映像中页面保护属性通过NtProtectVirtualMemory函数被修改。可以配合[这篇博文](https://jev0n.com/2021/09/23/Self-Remapping.html)一同食用。
 
 ## 作用
 
